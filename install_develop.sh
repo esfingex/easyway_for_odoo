@@ -31,7 +31,7 @@ function requirements(){
 	then add-apt-repository ppa:deadsnakes/ppa -y > /dev/null
 	fi
 
-	apt-get install gpg -y > /dev/null
+	apt-get install gpg lsb-release-y > /dev/null
 	echo ""
 
 }
@@ -124,7 +124,7 @@ function install_odoo(){
 
 	#Descarga odoo
 	echo "---> Descarga Paquete Apps ..."
-	wget -q https://nightly.odoo.com/14.0/nightly/src/odoo_${odoov}.0.latest.tar.gz
+	wget -q https://nightly.odoo.com/${odoov}.0/nightly/src/odoo_${odoov}.0.latest.tar.gz
 	echo "---> Descomprimiendo ..."
 	tar -xf odoo_${odoov}.0.latest.tar.gz > /dev/null
 	mv odoo-${odoov}.* odoo${odoov}
