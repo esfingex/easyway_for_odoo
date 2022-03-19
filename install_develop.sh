@@ -113,7 +113,7 @@ function install_vscode(){
 
 function install_odoo(){
 	echo "Instalando Dependencias de Odoo ..."
-	apt-get install python3-dev python3-virtualenv python3-pip libxml2-dev libjpeg-dev libsasl2-dev libldap2-dev libssl-dev zlib1g-dev libxslt1-dev libldap2-dev python3.7 python3.7-dev -y > /dev/null
+	apt-get install  libxml2-dev libjpeg-dev libsasl2-dev libldap2-dev libssl-dev zlib1g-dev libxslt1-dev libldap2-dev python3.7 python3.7-dev python3.7-venv python3-pip -y > /dev/null
 	pip3 install --upgrade pip > /dev/null
 
 	echo "Configurando Odoo ..."
