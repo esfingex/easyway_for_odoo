@@ -10,6 +10,7 @@
 #DEFINE
 odoov=14			#Versión odoo a instalar
 release=$(lsb_release -cs)	#Versión de SO (solo ubuntu)
+duser=esfingex
 
 function update(){
 	apt-get update -y
@@ -76,13 +77,10 @@ function install_wkhtmltopdf(){
 	;;
 	esac
 
-	#Configuración
-	mkdir download
-	chmod 777 -R download
-	wget -q -P download $url_get$wkhtmltox
+	wget -q $url_get$wkhtmltox
 	echo "---> Instalando Paquetes ... "
-	dpkg -i download/$wkhtmltox > /dev/null
-	rm -R download/
+	dpkg -i $wkhtmltox > /dev/null
+	rm $wkhtmltox
 	update > /dev/null
 	echo ""
 }
@@ -111,44 +109,52 @@ function install_vscode(){
 	echo ""
 }
 
-function install_odoo(){
+function install_odoo_dev(){
 	echo "Instalando Dependencias de Odoo ..."
 	apt-get install  git libxml2-dev libjpeg-dev libsasl2-dev libldap2-dev libssl-dev zlib1g-dev libxslt1-dev libldap2-dev python3.7 python3.7-dev python3-pip python3-virtualenv -y > /dev/null
-	#Repara el error de path que ocurre en Ubuntu
-	export PATH=$PATH:/home/$USER/.local/bin	
-	pip3 install --upgrade pip > /dev/null
-
-	echo "Configurando Odoo ..."
-	#Estructura de Addons
-	echo "---> Estructura Directorios ..."
-	mkdir /opt/odoo
-	mkdir /opt/odoo/odoo${odoov}
+	
+	#Repara el error de path que ocurre en Ubuntu sobre pip
+	su $duser -c "export PATH=$PATH:/home/$duser/.local/bin"	
+	su $duser -c "pip install --upgrade pip > /dev/null"
+	su $duser -c "pip3 install --upgrade pip > /dev/null"
 
 	#Descarga odoo
 	echo "---> Descarga Odoo SRC ..."
 	wget -q https://nightly.odoo.com/${odoov}.0/nightly/src/odoo_${odoov}.0.latest.tar.gz		#Descarga
+	
 	echo "---> Descomprimiendo ..."
 	tar -xf odoo_${odoov}.0.latest.tar.gz > /dev/null											#Descomprime
-	mv odoo-${odoov}.* odoo${odoov}																#Cambia el nombre
+
+	echo "---> Estructura Directorios ..."
+	mv odoo-${odoov}.* odoo
+	mkdir /opt/odoo/odoo${odoov}/						        								#Cambia el nombre
 	cp -R odoo/ /opt/odoo/odoo${odoov}															#Copia a directorio
-	chmod 777 -R /opt/odoo/odoo																	#Asignación de permisos
+	chmod 777 -R /opt/odoo																		#Asignación de permisos
 	rm odoo_${odoov}.0.latest.tar.gz															#Borra el temp
 	rm -R odoo
 }
 
 function config_odoo(){
+	echo "Configurando Odoo ..."
+	echo "---> Configurando SRC ..."
+	mv /opt/odoo/odoo${odoov}/odoo/setup/odoo /opt/odoo/odoo${odoov}/odoo/odoo-bin				#Copia ejecutable python en dictorio principal
+	rm -R /opt/odoo/odoo${odoov}/odoo/setup
+	rm -R /opt/odoo/odoo${odoov}/odoo/odoo.egg-info
+	rm /opt/odoo/odoo${odoov}/odoo/setup.cfg
+	rm /opt/odoo/odoo${odoov}/odoo/setup.py
+	rm /opt/odoo/odoo${odoov}/odoo/PKG-INFO
+
 	#Instalacion Enviroments
 	echo "---> Creando Enviroments ..."
 	mkdir /opt/odoo/venv
-	chmod 777 -R /opt/odoo/venv
 	virtualenv -p /usr/bin/python3.7 /opt/odoo/venv/odoo${odoov} > /dev/null
 	source /opt/odoo/venv/odoo${odoov}/bin/activate
 	pip install pip --upgrade > /dev/null
 	echo "---> Instalando Dependencias Python ..."
 	pip install -r /opt/odoo/odoo${odoov}/odoo/requirements.txt > /dev/null
 	echo "---> Creando Workspace para VScode ..."
-	mkdir /home/$USER/workspace/odoovs
-	#echo ""
+	mkdir -p /home/$duser/workspace/odoovs
+	echo ""
 }
 
 
@@ -170,10 +176,9 @@ install_vscode
 echo "Instalando Github Desktop ..."
 install_gith_desk
 echo "Install Odoo ..."
-install_odoo
+install_odoo_dev
 config_odoo
 echo "Actualizando SO ..."
 update > /dev/null
 
 echo "Instalación Finalizada Enjoy 3:)"
-
