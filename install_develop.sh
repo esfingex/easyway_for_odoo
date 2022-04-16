@@ -124,10 +124,10 @@ function install_odoo_dev(){
 	
 	echo "---> Descomprimiendo ..."
 	tar -xf odoo_${odoov}.0.latest.tar.gz > /dev/null											#Descomprime
+	mv odoo-${odoov}.* odoo																		#Cambia el nombre
 
 	echo "---> Estructura Directorios ..."
-	mv odoo-${odoov}.* odoo
-	mkdir /opt/odoo/odoo${odoov}/						        								#Cambia el nombre
+	mkdir -p /opt/odoo/odoo${odoov}/
 	cp -R odoo/ /opt/odoo/odoo${odoov}															#Copia a directorio
 	chmod 777 -R /opt/odoo																		#Asignación de permisos
 	rm odoo_${odoov}.0.latest.tar.gz															#Borra el temp
