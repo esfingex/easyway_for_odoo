@@ -128,12 +128,12 @@ function install_odoo(){
 	echo "---> Descarga Odoo SRC ..."
 	wget -q https://nightly.odoo.com/${odoov}.0/nightly/src/odoo_${odoov}.0.latest.tar.gz		#Descarga
 	echo "---> Descomprimiendo ..."
-	tar -xf odoo_${odoov}.0.latest.tar.gz > /dev/null						#Descomprime
-	mv odoo-${odoov}.* odoo${odoov}									#Cambia el nombre
-	cp -R odoo${odoov}/ /opt/odoo/odoo${odoov}							#Copia a directorio
-	chmod 777 -R /opt/odoo/odoo${odoov}								#Asignación de permisos
-	rm odoo_${odoov}.0.latest.tar.gz								#Borra el temp
-	rm -R odoo${odoov}
+	tar -xf odoo_${odoov}.0.latest.tar.gz > /dev/null											#Descomprime
+	mv odoo-${odoov}.* odoo${odoov}																#Cambia el nombre
+	cp -R odoo/ /opt/odoo/odoo${odoov}															#Copia a directorio
+	chmod 777 -R /opt/odoo/odoo																	#Asignación de permisos
+	rm odoo_${odoov}.0.latest.tar.gz															#Borra el temp
+	rm -R odoo
 }
 
 function config_odoo(){
@@ -176,6 +176,4 @@ echo "Actualizando SO ..."
 update > /dev/null
 
 echo "Instalación Finalizada Enjoy 3:)"
-
-
 
