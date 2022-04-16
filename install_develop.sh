@@ -4,7 +4,7 @@
 # Este script solo soporta versiones #
 # de ubuntu 18.04, 20.04 (LTS)       #
 # Iván Masías                        # 
-# https://github.com/esfingex       #
+# https://github.com/esfingex        #
 ######################################
 
 #DEFINE
@@ -31,7 +31,7 @@ function requirements(){
 	then add-apt-repository ppa:deadsnakes/ppa -y > /dev/null
 	fi
 
-	apt-get install gpg lsb-release-y > /dev/null
+	apt-get install gpg lsb-release -y > /dev/null
 	echo ""
 
 }
@@ -113,7 +113,9 @@ function install_vscode(){
 
 function install_odoo(){
 	echo "Instalando Dependencias de Odoo ..."
-	apt-get install  libxml2-dev libjpeg-dev libsasl2-dev libldap2-dev libssl-dev zlib1g-dev libxslt1-dev libldap2-dev python3.7 python3.7-dev python3.7-venv python3-pip -y > /dev/null
+	apt-get install  git libxml2-dev libjpeg-dev libsasl2-dev libldap2-dev libssl-dev zlib1g-dev libxslt1-dev libldap2-dev python3.7 python3.7-dev python3-pip python3-virtualenv -y > /dev/null
+	#Repara el error de path que ocurre en Ubuntu
+	export PATH=$PATH:/home/$USER/.local/bin	
 	pip3 install --upgrade pip > /dev/null
 
 	echo "Configurando Odoo ..."
@@ -123,21 +125,30 @@ function install_odoo(){
 	mkdir /opt/odoo/odoo${odoov}
 
 	#Descarga odoo
-	echo "---> Descarga Paquete Apps ..."
-	wget -q https://nightly.odoo.com/${odoov}.0/nightly/src/odoo_${odoov}.0.latest.tar.gz
+	echo "---> Descarga Odoo SRC ..."
+	wget -q https://nightly.odoo.com/${odoov}.0/nightly/src/odoo_${odoov}.0.latest.tar.gz		#Descarga
 	echo "---> Descomprimiendo ..."
-	tar -xf odoo_${odoov}.0.latest.tar.gz > /dev/null
-	mv odoo-${odoov}.* odoo${odoov}
-	cp -R odoo${odoov}/ /opt/odoo/odoo${odoov}
-	chmod 777 -R /opt/odoo/odoo${odoov}
-	rm odoo_${odoov}.0.latest.tar.gz
+	tar -xf odoo_${odoov}.0.latest.tar.gz > /dev/null						#Descomprime
+	mv odoo-${odoov}.* odoo${odoov}									#Cambia el nombre
+	cp -R odoo${odoov}/ /opt/odoo/odoo${odoov}							#Copia a directorio
+	chmod 777 -R /opt/odoo/odoo${odoov}								#Asignación de permisos
+	rm odoo_${odoov}.0.latest.tar.gz								#Borra el temp
 	rm -R odoo${odoov}
+}
 
+function config_odoo(){
 	#Instalacion Enviroments
 	echo "---> Creando Enviroments ..."
-	virtualenv -p /usr/bin/python3.7 /opt/venv/odoo${odoov}	> /dev/null
-	source /opt/venv/odoo${odoov}/bin/activate
-	echo ""
+	mkdir /opt/odoo/venv
+	chmod 777 -R /opt/odoo/venv
+	virtualenv -p /usr/bin/python3.7 /opt/odoo/venv/odoo${odoov} > /dev/null
+	source /opt/odoo/venv/odoo${odoov}/bin/activate
+	pip install pip --upgrade > /dev/null
+	echo "---> Instalando Dependencias Python ..."
+	pip install -r /opt/odoo/odoo${odoov}/odoo/requirements.txt > /dev/null
+	echo "---> Creando Workspace para VScode ..."
+	mkdir /home/$USER/workspace/odoovs
+	#echo ""
 }
 
 
@@ -160,6 +171,7 @@ echo "Instalando Github Desktop ..."
 install_gith_desk
 echo "Install Odoo ..."
 install_odoo
+config_odoo
 echo "Actualizando SO ..."
 update > /dev/null
 
