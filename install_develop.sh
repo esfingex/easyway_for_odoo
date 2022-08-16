@@ -53,7 +53,6 @@ function requirements(){
 
 }
 
-
 #Consulta arquitectura
 if [ $(arch) == 'x86_64' ]; then archtype=arch=amd64; fi
 
@@ -187,22 +186,22 @@ echo "for Easyway (https://github.com/esfingex)  #"
 echo "############################################"
 echo ""
 echo "Antes que Nada ... Lo escencial *_*"
-#requirements
+requirements
 echo "Instalando Librería wkhtmltopdf ..."
-#install_wkhtmltopdf
+install_wkhtmltopdf
 echo "Instalando PostgreSQL ..."
-#install_postgres
+install_postgres
 echo "Instalando pgAdmin4 ..."
-#install_pgadmin
+install_pgadmin
 echo "Instalando VScode ..."
-#install_vscode
+install_vscode
 echo "Instalando Github Desktop ..."
-#install_gith_desk
+install_gith_desk
 echo "Install Odoo ..."
-#install_odoo_dev
-#config_odoo_src
+install_odoo_dev
+config_odoo_src
 config_odoo_env
 echo "Actualizando SO ..."
-#update > /dev/null
+update > /dev/null
 
 echo "Instalación Finalizada Enjoy 3:)"
