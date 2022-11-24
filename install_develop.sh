@@ -64,13 +64,11 @@ function requirements(){
 if [ $(arch) == 'x86_64' ]; then archtype=arch=amd64; fi
 
 function install_postgres(){
-	echo "---> PostgreSQL GPG Key ... "
-	wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmour > pgdg.gpg
-	mv pgdg.gpg $gpgkey_path/pgdg.gpg
-	pgpkey_path=signed-by=$gpgkey_path/pgdg.gpg
 	echo "---> PostgreSQL APT ... "
-	text="deb [${archtype} ${pgpkey_path}] http://apt.postgresql.org/pub/repos/apt $release-pgdg main"
+	text="deb [${archtype}] http://apt.postgresql.org/pub/repos/apt $release-pgdg main"
 	echo $text >> $source_list/pgdg.list
+	echo "---> PostgreSQL GPG Key ... "
+	wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmour > $gpgkey_path/pgdg.gpg
 	echo "---> Actualizando ... "
 	update_full > /dev/null
 	echo "---> Instalando Paquetes ... "
@@ -79,8 +77,9 @@ function install_postgres(){
 }
 
 function install_pgadmin(){
+	echo "---> PGadmin APT ... "
 	text="deb [${archtype}] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$release pgadmin4 main"
-	echo $text >> /etc/apt/sources.list.d/pgadmin4.list
+	echo $text >> $source_list/pgadmin4.list
 	echo "---> pgAdmin4 Key ... "
 	wget --quiet -O - https://www.pgadmin.org/static/packages_pgadmin_org.pub | gpg --dearmour > $gpgkey_path/pgadmin4.gpg
 	echo "---> Actualizando ... "
@@ -99,7 +98,7 @@ function install_wkhtmltopdf(){
 	if [ $release == 'jammy' ];
 	then
 		echo "---> Instalando Paquetes ... "
-		apt-get install wkhtmltopdf -y > /dev/null
+		apt-fast install wkhtmltopdf -y > /dev/null
 	else
 		url_get="https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/0.12.5/"
 		case $release in 
@@ -127,11 +126,12 @@ function install_gith_desk(){
 	echo "---> Actualizando ... "
 	update_full > /dev/null
 	echo "---> Instalando Paquetes ... "
-	apt-get install github-desktop -y > /dev/null
+	apt-fast install github-desktop -y > /dev/null
 	echo ""
 }
 
 function install_vscode(){
+	echo "---> Creando APT Source  ... "
 	text="deb [${archtype}] https://packages.microsoft.com/repos/code stable main"
 	echo $text >> /etc/apt/sources.list.d/vscode.list
 	echo "---> VScode Key ... "
@@ -139,7 +139,7 @@ function install_vscode(){
 	echo "---> Actualizando ... "
 	update_full > /dev/null
 	echo "---> Instalando Paquetes ... "
-	apt-get install apt-transport-https code -y > /dev/null
+	apt-fast install apt-transport-https code -y > /dev/null
 	echo ""
 }
 
