@@ -89,6 +89,29 @@ function install_pgadmin(){
 	echo ""
 }
 
+function install_gith_desk(){
+	echo "---> Descargando Paquetes  ... "
+	wget -q https://github.com/shiftkey/desktop/releases/download/release-3.0.5-linux1/GitHubDesktop-linux-3.0.5-linux1.deb
+	echo "---> Instalando Paquetes  ... "
+	dpkg -i GitHubDesktop-linux-3.0.5-linux1.deb
+	echo "---> Eliminando Paquetes ... "
+	rm GitHubDesktop-linux-3.0.5-linux1.deb
+	echo ""
+}
+
+function install_vscode(){
+	echo "---> Creando APT Source  ... "
+	text="deb ${archtype} https://packages.microsoft.com/repos/code stable main"
+	echo $text >> $source_list/vscode.list
+	echo "---> VScode Key ... "
+	wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmour > $gpgkey_path/microsoft.gpg
+	echo "---> Actualizando ... "
+	update > /dev/null
+	echo "---> Instalando Paquetes ... "
+	apt-get install apt-transport-https code -y > /dev/null
+	echo ""
+}
+
 ##wkhtmltopdf
 #Descargar Archivos Base
 #https://github.com/wkhtmltopdf/wkhtmltopdf/releases
@@ -115,29 +138,6 @@ function install_wkhtmltopdf(){
 	fi
 
 	update_full > /dev/null
-	echo ""
-}
-
-function install_gith_desk(){
-	echo "---> Descargando Paquetes  ... "
-	wget -q https://github.com/shiftkey/desktop/releases/download/release-3.0.5-linux1/GitHubDesktop-linux-3.0.5-linux1.deb
-	echo "---> Instalando Paquetes  ... "
-	dpkg -i GitHubDesktop-linux-3.0.5-linux1.deb
-	echo "---> Eliminando Paquetes ... "
-	rm GitHubDesktop-linux-3.0.5-linux1.deb
-	echo ""
-}
-
-function install_vscode(){
-	echo "---> Creando APT Source  ... "
-	text="deb [${archtype}] https://packages.microsoft.com/repos/code stable main"
-	echo $text >> /etc/apt/sources.list.d/vscode.list
-	echo "---> VScode Key ... "
-	wget -qO- https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
-	echo "---> Actualizando ... "
-	update_full > /dev/null
-	echo "---> Instalando Paquetes ... "
-	apt-fast install apt-transport-https code -y > /dev/null
 	echo ""
 }
 
