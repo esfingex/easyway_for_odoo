@@ -119,14 +119,12 @@ function install_wkhtmltopdf(){
 }
 
 function install_gith_desk(){
-	text="deb [${archtype}] https://packagecloud.io/shiftkey/desktop/any/ any main"
-	echo $text >> /etc/apt/sources.list.d/shiftkey-desktop.list
-	echo "---> Github Desktop Key ... "
-	wget -qO- https://packagecloud.io/shiftkey/desktop/gpgkey | sudo apt-key add -
-	echo "---> Actualizando ... "
-	update_full > /dev/null
-	echo "---> Instalando Paquetes ... "
-	apt-fast install github-desktop -y > /dev/null
+	echo "---> Descargando Paquetes  ... "
+	wget -q https://github.com/shiftkey/desktop/releases/download/release-3.0.5-linux1/GitHubDesktop-linux-3.0.5-linux1.deb
+	echo "---> Instalando Paquetes  ... "
+	dpkg -i GitHubDesktop-linux-3.0.5-linux1.deb
+	echo "---> Eliminando Paquetes ... "
+	rm GitHubDesktop-linux-3.0.5-linux1.deb
 	echo ""
 }
 
