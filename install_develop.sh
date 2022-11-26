@@ -3,14 +3,13 @@
 ########################################
 #                                      #
 # Este script solo soporta versiones   #
-# Ubuntu 18.04, 20.04(LTS)             #
-# 22.04 es experimental aún            #
+# Ubuntu 18.04, 20.04, 22.04 (LTS)     #
 # Iván Masías                          # 
 # https://github.com/esfingex          #
 ########################################
 
 #DEFINE
-odoov=14			#Versión odoo a instalar
+odoov=15			#Versión odoo a instalar
 release=$(lsb_release -cs)	#Versión de SO (solo ubuntu)
 duser=esfingex
 source_list=/etc/apt/sources.list.d
@@ -48,14 +47,7 @@ function requirements(){
 	  fi
 	done
 
-	#FIX Librería wkhtmltopdf en jammy para libssl1.1 (OpenSSL)
-	#if [ $release == 'jammy' ]; then
-	#	text="deb [${archtype}] deb http://security.ubuntu.com/ubuntu impish-security main"
-	#	echo $text >> /etc/apt/sources.list.d/impish.list
-	#	apt install libssl1.1 -y > /dev/null
-	#fi
-
-	apt-get install gpg lsb-release -y > /dev/null
+	apt-get install gpg lsb-release aria2 -y > /dev/null
 	echo ""
 
 }
@@ -141,29 +133,39 @@ function install_wkhtmltopdf(){
 	echo ""
 }
 
+function download_odoo_ver(){
+
+	#Descarga odoo
+	echo "---> Descarga Odoo SRC ..."
+	aria2c -x2 --quiet=true https://nightly.odoo.com/${odoov}.0/nightly/src/odoo_${odoov}.0.latest.tar.gz > /dev/null	#Descarga
+	
+	echo "---> Descomprimiendo ..."
+	tar -xf odoo_${odoov}.0.latest.tar.gz > /dev/null														#Descomprime
+	mv odoo-${odoov}.* odoo																					#Cambia el nombre
+
+	echo "---> Estructura Directorios ..."
+	mkdir -p /opt/odoo/odoo${odoov}/
+	cp -R odoo/ /opt/odoo/odoo${odoov}																		#Copia a directorio
+	chmod 777 -R /opt/odoo																					#Asignación de permisos
+	rm odoo_${odoov}.0.latest.tar.gz																		#Borra el temp
+	rm -R odoo
+
+}
+
 function install_odoo_dev(){
+
+	#Esta función permite agregar más versatilidad a la instalación de librerias adicionales
+	#Falta diferenciar los paquetes entre las diferentes versiones de odoo, según la 14, 15, etc
+
 	echo "Instalando Dependencias de Odoo ..."
-	apt-get install  git libxml2-dev libjpeg-dev libsasl2-dev libldap2-dev libssl-dev zlib1g-dev libxslt1-dev libldap2-dev python3.8 python3.8-dev python3-pip python3-virtualenv -y > /dev/null
+	apt-fast install git libxml2-dev libjpeg-dev libsasl2-dev libldap2-dev libssl-dev zlib1g-dev \
+		libxslt1-dev libldap2-dev python3.9 python3.9-dev python3.9-distutils python3-pip python3-virtualenv -y > /dev/null
 	
 	#Repara el error de path que ocurre en Ubuntu sobre pip
 	su $duser -c "export PATH=$PATH:/home/$duser/.local/bin"	
 	su $duser -c "pip install --upgrade pip > /dev/null"
 	su $duser -c "pip3 install --upgrade pip > /dev/null"
 
-	#Descarga odoo
-	echo "---> Descarga Odoo SRC ..."
-	wget -q https://nightly.odoo.com/${odoov}.0/nightly/src/odoo_${odoov}.0.latest.tar.gz		#Descarga
-	
-	echo "---> Descomprimiendo ..."
-	tar -xf odoo_${odoov}.0.latest.tar.gz > /dev/null											#Descomprime
-	mv odoo-${odoov}.* odoo																		#Cambia el nombre
-
-	echo "---> Estructura Directorios ..."
-	mkdir -p /opt/odoo/odoo${odoov}/
-	cp -R odoo/ /opt/odoo/odoo${odoov}															#Copia a directorio
-	chmod 777 -R /opt/odoo																		#Asignación de permisos
-	rm odoo_${odoov}.0.latest.tar.gz															#Borra el temp
-	rm -R odoo
 }
 
 function config_odoo_src(){
@@ -181,13 +183,14 @@ function config_odoo_env(){
 	#Instalacion Enviroments
 	echo "---> Creando Enviroments ..."
 	mkdir /opt/odoo/venv
-	virtualenv -p /usr/bin/python3.8 /opt/odoo/venv/odoo${odoov} > /dev/null
+	virtualenv -p /usr/bin/python3.9 /opt/odoo/venv/odoo${odoov} > /dev/null
+	chmod 777 -R /opt/odoo/venv
 	source /opt/odoo/venv/odoo${odoov}/bin/activate
 	pip install pip --upgrade > /dev/null
 	echo "---> Instalando Dependencias Python ..."
 	pip install -r /opt/odoo/odoo${odoov}/odoo/requirements.txt > /dev/null
 	echo "---> Creando Workspace para VScode ..."
-	mkdir -p /home/$duser/workspace/odoovs
+	mkdir -p /home/$duser/workspace/odoovs${odoov}
 	echo ""
 }
 
@@ -196,23 +199,24 @@ echo "Install OdooScript Development             #"
 echo "for Easyway (https://github.com/esfingex)  #"
 echo "############################################"
 echo ""
-#echo "Antes que Nada ... Lo escencial *_*"
-#requirements
-#echo "Instalando Librería wkhtmltopdf ..."
-#install_wkhtmltopdf
-#echo "Instalando PostgreSQL ..."
-#install_postgres
+echo "Antes que Nada ... Lo escencial *_*"
+requirements
+echo "Instalando Librería wkhtmltopdf ..."
+install_wkhtmltopdf
+echo "Instalando PostgreSQL ..."
+install_postgres
 echo "Instalando pgAdmin4 ..."
 install_pgadmin
-#echo "Instalando VScode ..."
-#install_vscode
-#echo "Instalando Github Desktop ..."
-#install_gith_desk
-#echo "Install Odoo ..."
-#install_odoo_dev
-#config_odoo_src
-#config_odoo_env
-#echo "Actualizando SO ..."
-#update_full > /dev/null
+echo "Instalando VScode ..."
+install_vscode
+echo "Instalando Github Desktop ..."
+install_gith_desk
+echo "Install Librerias Base de Odoo ..."
+install_odoo_dev
+download_odoo_ver
+config_odoo_src
+config_odoo_env
+echo "Actualizando SO ..."
+update_full > /dev/null
 
 echo "Instalación Finalizada Enjoy 3:)"
