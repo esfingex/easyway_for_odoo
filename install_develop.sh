@@ -190,14 +190,18 @@ function config_odoo_env(){
 	echo "---> Instalando Dependencias Python ..."
 	pip install -r /opt/odoo/odoo${odoov}/odoo/requirements.txt > /dev/null
 	echo "---> Creando Workspace para VScode ..."
-	mkdir -p /home/$duser/workspace/odoovs${odoov}
+	mkdir -p /home/$duser/workspace/odoo${odoov}
+	echo "---> Copiando Archivos de Configuración ..."
+	mv odoovs/ /home/$duser/workspace/odoo${odoov}
+	chmod 777 -R /home/$duser/workspace/
+	ln -s /opt/odoo/odoo${odoov}/odoo/ /home/esfingex/workspace/odoo${odoov}/
 	echo ""
 }
 
-echo "############################################"
-echo "Install OdooScript Development             #"
-echo "for Easyway (https://github.com/esfingex)  #"
-echo "############################################"
+echo "################################################"
+echo "Install OdooScript Development (Experimental)  #"
+echo "for Easyway (https://github.com/esfingex)      #"
+echo "################################################"
 echo ""
 echo "Antes que Nada ... Lo escencial *_*"
 requirements
