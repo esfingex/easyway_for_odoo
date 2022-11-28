@@ -6,11 +6,12 @@
 # Ubuntu 18.04, 20.04, 22.04 (LTS)     #
 # Iván Masías                          # 
 # https://github.com/esfingex          #
+#                                      #
 ########################################
 
 #DEFINE
-odoov=15			#Versión odoo a instalar
-release=$(lsb_release -cs)	#Versión de SO (solo ubuntu)
+odoov=15			                  #Versión odoo a instalar
+release=$(lsb_release -cs)	          #Versión de SO (solo ubuntu)
 duser=esfingex
 source_list=/etc/apt/sources.list.d
 gpgkey_path=/etc/apt/trusted.gpg.d
