@@ -193,7 +193,7 @@ function config_odoo_env(){
 	echo "---> Creando Workspace para VScode ..."
 	mkdir -p /home/$duser/workspace/odoo${odoov}
 	echo "---> Copiando Archivos de Configuración ..."
-	mv odoovs/ /home/$duser/workspace/odoo${odoov}
+	mv odoovs/{.,}* /home/$duser/workspace/odoo${odoov}
 	chmod 777 -R /home/$duser/workspace/
 	ln -s /opt/odoo/odoo${odoov}/odoo/ /home/esfingex/workspace/odoo${odoov}/
 	echo ""
