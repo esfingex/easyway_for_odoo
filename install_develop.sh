@@ -10,8 +10,9 @@
 ########################################
 
 #DEFINE
-odoov=15			                  #Versión odoo a instalar
+odoov=14			                  #Versión odoo a instalar
 release=$(lsb_release -cs)	          #Versión de SO (solo ubuntu)
+pgsqlv=14	                          #Versión de PG (solo ubuntu)
 duser=esfingex
 source_list=/etc/apt/sources.list.d
 gpgkey_path=/etc/apt/trusted.gpg.d
@@ -65,7 +66,7 @@ function install_postgres(){
 	echo "---> Actualizando ... "
 	update_full > /dev/null
 	echo "---> Instalando Paquetes ... "
-	apt-fast install libpq-dev postgresql -y > /dev/null
+	apt-fast install libpq-dev postgresql-${pgsqlv} -y > /dev/null
 	echo ""
 }
 
@@ -223,5 +224,4 @@ config_odoo_src
 config_odoo_env
 echo "Actualizando SO ..."
 update_full > /dev/null
-
 echo "Instalación Finalizada Enjoy 3:)"
