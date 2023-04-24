@@ -83,29 +83,6 @@ function install_pgadmin(){
 	echo ""
 }
 
-function install_gith_desk(){
-	echo "---> Descargando Paquetes  ... "
-	wget -q https://github.com/shiftkey/desktop/releases/download/release-3.0.5-linux1/GitHubDesktop-linux-3.0.5-linux1.deb
-	echo "---> Instalando Paquetes  ... "
-	dpkg -i GitHubDesktop-linux-3.0.5-linux1.deb
-	echo "---> Eliminando Paquetes ... "
-	rm GitHubDesktop-linux-3.0.5-linux1.deb
-	echo ""
-}
-
-function install_vscode(){
-	echo "---> Creando APT Source  ... "
-	text="deb ${archtype} https://packages.microsoft.com/repos/code stable main"
-	echo $text >> $source_list/vscode.list
-	echo "---> VScode Key ... "
-	wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmour > $gpgkey_path/microsoft.gpg
-	echo "---> Actualizando ... "
-	update > /dev/null
-	echo "---> Instalando Paquetes ... "
-	apt-get install apt-transport-https code -y > /dev/null
-	echo ""
-}
-
 ##wkhtmltopdf
 #Descargar Archivos Base
 #https://github.com/wkhtmltopdf/wkhtmltopdf/releases
@@ -200,6 +177,21 @@ function config_odoo_env(){
 	echo ""
 }
 
+#Herramientas de trabajo
+function easyway_for_ubuntu(){
+	echo "---> Descargando Instaladores ... "
+	git clone https://github.com/esfingex/easyway_for_ubuntu.git > /dev/null
+	chmod 777 -R easyway_for_ubuntu
+	
+	echo "---> Instalando Software ... "
+	./easyway_for_ubuntu/vs_code.sh
+	./easyway_for_ubuntu/github_desktop.sh
+	./easyway_for_ubuntu/install_wine.sh
+	#Opcional
+	#./easyway_for_ubuntu/install_wpsoffice.sh
+	#./easyway_for_ubuntu/vivaldi_browser.sh
+}
+
 echo "################################################"
 echo "Install OdooScript Development (Experimental)  #"
 echo "for Easyway (https://github.com/esfingex)      #"
@@ -213,10 +205,8 @@ echo "Instalando PostgreSQL ..."
 install_postgres
 echo "Instalando pgAdmin4 ..."
 install_pgadmin
-echo "Instalando VScode ..."
-install_vscode
-echo "Instalando Github Desktop ..."
-install_gith_desk
+echo "Instalando Herramientas ..."
+easyway_for_ubuntu
 echo "Install Librerias Base de Odoo ..."
 install_odoo_dev
 download_odoo_ver
