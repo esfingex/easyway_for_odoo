@@ -163,7 +163,7 @@ function config_odoo_env(){
 	echo "---> Creando Enviroments ..."
 	mkdir /opt/odoo/venv
 	virtualenv -p /usr/bin/python3.9 /opt/odoo/venv/odoo${odoov} > /dev/null
-	chmod 777 -R /opt/odoo/venv
+	chmod 777 -R /opt/odoo/venv/odoo${odoov}
 	source /opt/odoo/venv/odoo${odoov}/bin/activate
 	pip install pip --upgrade > /dev/null
 	echo "---> Instalando Dependencias Python ..."
@@ -172,7 +172,7 @@ function config_odoo_env(){
 	mkdir -p /home/$duser/workspace/odoo${odoov}
 	echo "---> Copiando Archivos de Configuración ..."
 	mv odoovs/{.,}* /home/$duser/workspace/odoo${odoov}
-	chmod 777 -R /home/$duser/workspace/
+	chmod 777 -R /home/$duser/workspace/odoo${odoov}
 	ln -s /opt/odoo/odoo${odoov}/odoo/ /home/esfingex/workspace/odoo${odoov}/
 	echo ""
 }
