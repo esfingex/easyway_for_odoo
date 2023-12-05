@@ -192,6 +192,16 @@ function easyway_for_ubuntu(){
 	#./easyway_for_ubuntu/vivaldi_browser.sh
 }
 
+function gufw_basic(){
+	echo "---> Reglas del Firewall (Básicas) ... "
+	ufw default deny incoming
+	ufw default allow outgoing
+	iptables -A INPUT -p tcp --dport 8069 -j ACCEPT
+	ufw allow 8069/tcp
+	ufw allow 80/tcp
+	ufw allow 443/tcp
+}
+
 echo "################################################"
 echo "Install OdooScript Development (Experimental)  #"
 echo "for Easyway (https://github.com/esfingex)      #"
@@ -212,6 +222,8 @@ install_odoo_dev
 download_odoo_ver
 config_odoo_src
 config_odoo_env
+echo "Instalando Firewall ..."
+gufw_basic
 echo "Actualizando SO ..."
 update_full > /dev/null
 echo "Instalación Finalizada Enjoy 3:)"
