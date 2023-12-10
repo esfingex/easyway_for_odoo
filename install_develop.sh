@@ -185,7 +185,7 @@ function easyway_for_ubuntu(){
 	
 	echo "---> Instalando Software ... "
 	./easyway_for_ubuntu/vs_code.sh
-	./easyway_for_ubuntu/github_desktop.sh
+	./easyway_for_ubuntu/install_github_desk.sh
 	./easyway_for_ubuntu/install_wine.sh
 	#Opcional
 	#./easyway_for_ubuntu/install_wpsoffice.sh
