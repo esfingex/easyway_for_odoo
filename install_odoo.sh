@@ -94,7 +94,7 @@ function install_postgres(){
 	echo "---> Actualizando ... "
 	update_full > /dev/null
 	echo "---> Instalando Paquetes ... "
-	apt-get install libpq-dev postgvresql-${pgsqlv} -y > /dev/null
+	apt-get install libpq-dev postgresql-${pgsqlv} -y > /dev/null
 	echo ""
 }
 

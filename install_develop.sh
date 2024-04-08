@@ -13,7 +13,7 @@
 odoov=14			                  #Versión odoo a instalar
 release=$(lsb_release -cs)	          #Versión de SO (solo ubuntu)
 pgsqlv=14	                          #Versión de PG (solo ubuntu)
-duser=esfingex
+duser=usuario del sistema 
 source_list=/etc/apt/sources.list.d
 gpgkey_path=/etc/apt/trusted.gpg.d
 
@@ -163,17 +163,17 @@ function config_odoo_env(){
 	echo "---> Creando Enviroments ..."
 	mkdir /opt/odoo/venv
 	virtualenv -p /usr/bin/python3.9 /opt/odoo/venv/odoo${odoov} > /dev/null
-	chmod 777 -R /opt/odoo/venv/odoo${odoov}
+	chmod 777 -R /opt/odoo/venv
 	source /opt/odoo/venv/odoo${odoov}/bin/activate
 	pip install pip --upgrade > /dev/null
 	echo "---> Instalando Dependencias Python ..."
 	pip install -r /opt/odoo/odoo${odoov}/odoo/requirements.txt > /dev/null
 	echo "---> Creando Workspace para VScode ..."
-	mkdir -p /home/$duser/workspace/odoo${odoov}
+	su $duser -c "mkdir -p /home/$duser/workspace/odoo${odoov}"
 	echo "---> Copiando Archivos de Configuración ..."
-	mv odoovs/{.,}* /home/$duser/workspace/odoo${odoov}
-	chmod 777 -R /home/$duser/workspace/odoo${odoov}
-	ln -s /opt/odoo/odoo${odoov}/odoo/ /home/esfingex/workspace/odoo${odoov}/
+	#mv odoovs/{.,}* /home/$duser/workspace/odoo${odoov}
+	su $duser -c "ln -s /opt/odoo/odoo${odoov}/odoo/ /home/$duser/workspace/odoo${odoov}/"
+	su $duser -c "chmod 777 -R /home/$duser/workspace/odoo${odoov}"
 	echo ""
 }
 
