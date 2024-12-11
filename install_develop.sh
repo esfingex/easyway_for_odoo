@@ -10,10 +10,11 @@
 ########################################
 
 #DEFINE
-odoov=14			                  #Versión odoo a instalar
+odoov=17			                  #Versión odoo a instalar
 release=$(lsb_release -cs)	          #Versión de SO (solo ubuntu)
-pgsqlv=14	                          #Versión de PG (solo ubuntu)
-duser=usuario del sistema 
+pgsqlv=15	                          #Versión de PG (solo ubuntu)
+python_v=10
+duser=esfingex
 source_list=/etc/apt/sources.list.d
 gpgkey_path=/etc/apt/trusted.gpg.d
 
@@ -40,7 +41,7 @@ function requirements(){
 
 	#Agrega Repositorio de Python con versiones anteriores, 
 	#para versiones superiores a ubuntu 20.04 (Solo LTS)
-	systemos=('focal' 'jammy')
+	systemos=('focal' 'jammy' 'noble')
 	
 	for codename in ${systemos[@]}; do
 	  if [ $release == $codename ];
@@ -100,6 +101,10 @@ function install_wkhtmltopdf(){
 		;;
 		'bionic') wkhtmltox="wkhtmltox_0.12.5-1.bionic_amd64.deb"
 		;;
+		'noble') 
+		wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.0g-2ubuntu4_amd64.deb
+		dpkg -i libssl1.1_1.1.0g-2ubuntu4_amd64.deb
+		;;
 		esac
 		echo "---> Descargando Paquetes... "
 		wget -q $url_get$wkhtmltox
@@ -138,7 +143,7 @@ function install_odoo_dev(){
 
 	echo "Instalando Dependencias de Odoo ..."
 	apt-fast install git libxml2-dev libjpeg-dev libsasl2-dev libldap2-dev libssl-dev zlib1g-dev \
-		libxslt1-dev libldap2-dev python3.9 python3.9-dev python3.9-distutils python3-pip python3-virtualenv -y > /dev/null
+		libxslt1-dev libldap2-dev python3.${python_v} python3.${python_v}-dev python3.${python_v}-distutils python3-pip python3-virtualenv -y > /dev/null
 	
 	#Repara el error de path que ocurre en Ubuntu sobre pip
 	su $duser -c "export PATH=$PATH:/home/$duser/.local/bin"	
@@ -207,16 +212,16 @@ echo "Install OdooScript Development (Experimental)  #"
 echo "for Easyway (https://github.com/esfingex)      #"
 echo "################################################"
 echo ""
-echo "Antes que Nada ... Lo escencial *_*"
-requirements
-echo "Instalando Librería wkhtmltopdf ..."
-install_wkhtmltopdf
-echo "Instalando PostgreSQL ..."
-install_postgres
-echo "Instalando pgAdmin4 ..."
-install_pgadmin
-echo "Instalando Herramientas ..."
-easyway_for_ubuntu
+#echo "Antes que Nada ... Lo escencial *_*"
+#requirements
+#echo "Instalando Librería wkhtmltopdf ..."
+#install_wkhtmltopdf
+#echo "Instalando PostgreSQL ..."
+#install_postgres
+#echo "Instalando pgAdmin4 ..."
+#install_pgadmin
+#echo "Instalando Herramientas ..."
+#easyway_for_ubuntu
 echo "Install Librerias Base de Odoo ..."
 install_odoo_dev
 download_odoo_ver
