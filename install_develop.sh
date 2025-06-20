@@ -10,7 +10,7 @@
 ########################################
 
 #DEFINE
-odoov=17			                  #Versión odoo a instalar
+odoov=18			                  #Versión odoo a instalar
 release=$(lsb_release -cs)	          #Versión de SO (solo ubuntu)
 pgsqlv=15	                          #Versión de PG (solo ubuntu)
 python_v=10
@@ -89,29 +89,27 @@ function install_pgadmin(){
 #https://github.com/wkhtmltopdf/wkhtmltopdf/releases
 function install_wkhtmltopdf(){
 	apt-fast install xfonts-75dpi xfonts-base -y > /dev/null
-
-	if [ $release == 'jammy' ];
-	then
-		echo "---> Instalando Paquetes ... "
-		apt-fast install wkhtmltopdf -y > /dev/null
-	else
-		url_get="https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/0.12.5/"
-		case $release in 
-		'focal') wkhtmltox="wkhtmltox_0.12.5-1.focal_amd64.deb"
-		;;
-		'bionic') wkhtmltox="wkhtmltox_0.12.5-1.bionic_amd64.deb"
-		;;
-		'noble') 
-		wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.0g-2ubuntu4_amd64.deb
-		dpkg -i libssl1.1_1.1.0g-2ubuntu4_amd64.deb
-		;;
-		esac
-		echo "---> Descargando Paquetes... "
-		wget -q $url_get$wkhtmltox
-		echo "---> Instalando Paquetes ... "
-		dpkg -i $wkhtmltox > /dev/null
-		rm $wkhtmltox
-	fi
+	url_get="https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/0.12.5/"
+	case $release in 
+	'focal') wkhtmltox="wkhtmltox_0.12.5-1.focal_amd64.deb"
+	;;
+	'bionic') wkhtmltox="wkhtmltox_0.12.5-1.bionic_amd64.deb"
+	;;
+	'noble') 
+	echo "---> Instalando Paquetes ... "
+	wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.0g-2ubuntu4_amd64.deb
+	dpkg -i libssl1.1_1.1.0g-2ubuntu4_amd64.deb
+	apt-fast install wkhtmltopdf
+	;;
+	'jammy') 
+	echo "---> Instalando Paquetes ... "
+	apt-fast install wkhtmltopdf
+	esac
+	echo "---> Descargando Paquetes... "
+	wget -q $url_get$wkhtmltox
+	echo "---> Instalando Paquetes ... "
+	dpkg -i $wkhtmltox > /dev/null
+	rm $wkhtmltox
 
 	update_full > /dev/null
 	echo ""
@@ -120,7 +118,7 @@ function install_wkhtmltopdf(){
 function download_odoo_ver(){
 
 	#Descarga odoo
-	echo "---> Descarga Odoo SRC ..."
+	echo "---> Descarga Odoo SRC ${odoov}.0 ..."
 	aria2c -x2 --quiet=true https://nightly.odoo.com/${odoov}.0/nightly/src/odoo_${odoov}.0.latest.tar.gz > /dev/null	#Descarga
 	
 	echo "---> Descomprimiendo ..."
@@ -136,6 +134,15 @@ function download_odoo_ver(){
 
 }
 
+#en construccion
+function download_odoogit(){
+
+	git clone https://github.com/odoo/odoo.git --branch 16.0 --depth 1 odoo-16
+	git clone https://github.com/odoo/odoo.git --branch 15.0 --depth 1 odoo-15
+
+}
+
+
 function install_odoo_dev(){
 
 	#Esta función permite agregar más versatilidad a la instalación de librerias adicionales
@@ -143,8 +150,11 @@ function install_odoo_dev(){
 
 	echo "Instalando Dependencias de Odoo ..."
 	apt-fast install git libxml2-dev libjpeg-dev libsasl2-dev libldap2-dev libssl-dev zlib1g-dev \
-		libxslt1-dev libldap2-dev python3.${python_v} python3.${python_v}-dev python3.${python_v}-distutils python3-pip python3-virtualenv -y > /dev/null
+		libxslt1-dev libldap2-dev python3.${python_v} python3.${python_v}-dev python3.${python_v}-venv python3-pip -y > /dev/null
 	
+	#python3.${python_v}-distutils python3-virtualenv (al parecer son paquetes de python3.10 y 11 )
+
+
 	#Repara el error de path que ocurre en Ubuntu sobre pip
 	su $duser -c "export PATH=$PATH:/home/$duser/.local/bin"	
 	su $duser -c "pip install --upgrade pip > /dev/null"
@@ -167,7 +177,11 @@ function config_odoo_env(){
 	#Instalacion Enviroments
 	echo "---> Creando Enviroments ..."
 	mkdir /opt/odoo/venv
-	virtualenv -p /usr/bin/python3.9 /opt/odoo/venv/odoo${odoov} > /dev/null
+	#Falta versionar python por versión de odoo
+	#odoo 12 al 14 python 3.8
+	#15 a 16 python 3.9
+	#17 a 18 python 3.12 (incluso podria ser 3.11)
+	virtualenv -p /usr/bin/python3.10 /opt/odoo/venv/odoo${odoov} > /dev/null
 	chmod 777 -R /opt/odoo/venv
 	source /opt/odoo/venv/odoo${odoov}/bin/activate
 	pip install pip --upgrade > /dev/null
@@ -175,7 +189,7 @@ function config_odoo_env(){
 	pip install -r /opt/odoo/odoo${odoov}/odoo/requirements.txt > /dev/null
 	echo "---> Creando Workspace para VScode ..."
 	su $duser -c "mkdir -p /home/$duser/workspace/odoo${odoov}"
-	echo "---> Copiando Archivos de Configuración ..."
+	#echo "---> Copiando Archivos de Configuración ..."
 	#mv odoovs/{.,}* /home/$duser/workspace/odoo${odoov}
 	su $duser -c "ln -s /opt/odoo/odoo${odoov}/odoo/ /home/$duser/workspace/odoo${odoov}/"
 	su $duser -c "chmod 777 -R /home/$duser/workspace/odoo${odoov}"
@@ -222,13 +236,13 @@ echo ""
 #install_pgadmin
 #echo "Instalando Herramientas ..."
 #easyway_for_ubuntu
-echo "Install Librerias Base de Odoo ..."
-install_odoo_dev
+#echo "Install Librerias Base de Odoo ..."
+#install_odoo_dev
 download_odoo_ver
 config_odoo_src
 config_odoo_env
-echo "Instalando Firewall ..."
-gufw_basic
+#echo "Instalando Firewall ..."
+#gufw_basic
 echo "Actualizando SO ..."
 update_full > /dev/null
 echo "Instalación Finalizada Enjoy 3:)"
