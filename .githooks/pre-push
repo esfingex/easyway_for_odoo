@@ -36,9 +36,10 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     fi
 
     # 2) Escaneo de secretos en el contenido publicado (fail-closed:
-    #    si el diff no se puede calcular, se bloquea)
+    #    si el diff no se puede calcular, se bloquea).
+    #    Excluye tests/ y .githooks/: contienen fixtures de prueba a propósito.
     PATTERNS='BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]{36}|github_pat_|sk-[A-Za-z0-9]{20}|AKIA[0-9A-Z]{16}|29a863a7f550b6fe1c27427d8a60a52fd986678f80417d69b33cad251ef95830|easyway-(planning|limpieza)-[0-9]+'
-    if ! DIFF=$(git diff "$RANGE" 2>&1); then
+    if ! DIFF=$(git diff "$RANGE" -- . ':(exclude)tests/*' ':(exclude).githooks/*' 2>&1); then
         block "no pude calcular el diff de $RANGE: $DIFF"
     fi
     MATCHES=$(printf '%s\n' "$DIFF" | grep -nE "$PATTERNS" || true)
