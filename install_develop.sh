@@ -1,248 +1,180 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
 ########################################
-#                                      #
-# Este script solo soporta versiones   #
-# Ubuntu 18.04, 20.04, 22.04 (LTS)     #
-# Iván Masías                          # 
-# https://github.com/esfingex          #
-#                                      #
+# easyway_for_odoo — instalador de entorno de DESARROLLO Odoo
+# Iván Masías — https://github.com/esfingex
+#
+# Soporta Ubuntu 18.04, 20.04, 22.04, 24.04 (LTS)
+#
+# Uso:
+#   sudo ./install_develop.sh [--odoo 18] [--pg 16] [--python 3.12]
+#                             [--user juan] [--pgadmin] [--firewall]
+#                             [--dry-run]
 ########################################
 
-#DEFINE
-odoov=18			                  #Versión odoo a instalar
-release=$(lsb_release -cs)	          #Versión de SO (solo ubuntu)
-pgsqlv=15	                          #Versión de PG (solo ubuntu)
-python_v=10
-duser=esfingex
-source_list=/etc/apt/sources.list.d
-gpgkey_path=/etc/apt/trusted.gpg.d
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
 
-function update_full(){
-	apt-fast update -y
-	apt-fast upgrade -y
-	apt-fast autoremove -y
+# Defaults
+ODOO_VER=18
+PG_VER=16
+PYTHON_VER=""
+DUSER="${SUDO_USER:-$USER}"
+INSTALL_PGADMIN=0
+FIREWALL=0
+
+usage() {
+    cat <<EOF
+Uso: sudo ./install_develop.sh [opciones]
+EOF
+    usage_common
+    cat <<EOF
+  --pgadmin     instalar también pgAdmin4 (desktop)
+
+Mapeo automático Odoo -> Python:
+  15 -> 3.10 | 16/17 -> 3.10 | 18 -> 3.12   (sobrescribir con --python)
+EOF
 }
 
-function requirements(){
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --odoo)     ODOO_VER="$2"; shift 2 ;;
+        --pg)       PG_VER="$2"; shift 2 ;;
+        --python)   PYTHON_VER="$2"; shift 2 ;;
+        --user)     DUSER="$2"; shift 2 ;;
+        --pgadmin)  INSTALL_PGADMIN=1; shift ;;
+        --firewall) FIREWALL=1; shift ;;
+        --dry-run)  DRY_RUN=1; shift ;;
+        -h|--help)  usage; exit 0 ;;
+        *) die "Opción desconocida: $1 (ver --help)" ;;
+    esac
+done
 
-	echo "---> Instalando APT-FAST ... "
-	add-apt-repository ppa:apt-fast/stable -y > /dev/null
-	apt-get update -y > /dev/null
-	DEBIAN_FRONTEND=noninteractive apt-get install -qq apt-fast -y > /dev/null
+case "$ODOO_VER" in
+    ''|*[!0-9]*) die "--odoo debe ser un número (ej: 18)" ;;
+esac
+case "$PG_VER" in
+    ''|*[!0-9]*) die "--pg debe ser un número (ej: 16)" ;;
+esac
 
-	echo "---> Actualizando Sistema ... "
-	update_full > /dev/null
+# Mapeo Odoo -> Python (deadsnakes provee las versiones)
+if [ -z "$PYTHON_VER" ]; then
+    case "$ODOO_VER" in
+        15)         PYTHON_VER="3.10" ;;
+        16|17)      PYTHON_VER="3.10" ;;
+        18)         PYTHON_VER="3.12" ;;
+        *) die "Versión de Odoo sin mapeo de Python: $ODOO_VER (usa --python)" ;;
+    esac
+fi
 
-	#Instalación de repositorio multiverse y actualización de addons de forma automatica (ubuntu 18.04)
-	if [ $release == 'bionic' ];
-	then add-apt-repository multiverse > /dev/null
-	fi
+log "Config: odoo=$ODOO_VER pg=$PG_VER python=$PYTHON_VER user=$DUSER"
 
-	#Agrega Repositorio de Python con versiones anteriores, 
-	#para versiones superiores a ubuntu 20.04 (Solo LTS)
-	systemos=('focal' 'jammy' 'noble')
-	
-	for codename in ${systemos[@]}; do
-	  if [ $release == $codename ];
-	  then
-	    add-apt-repository ppa:deadsnakes/ppa -y > /dev/null
-	  fi
-	done
+require_root
+check_arch
+check_ubuntu
+install_apt_fast
+update_full
 
-	apt-get install gpg lsb-release aria2 -y > /dev/null
-	echo ""
+# PostgreSQL
+add_apt_repo "pgdg" "https://www.postgresql.org/media/keys/ACCC4CF8.asc" \
+    "http://apt.postgresql.org/pub/repos/apt ${RELEASE}-pgdg main"
+log "---> Instalando PostgreSQL $PG_VER ..."
+run apt-fast install -y libpq-dev "postgresql-${PG_VER}"
 
+if [ "$INSTALL_PGADMIN" = "1" ]; then
+    add_apt_repo "pgadmin4" "https://www.pgadmin.org/static/packages_pgadmin_org.pub" \
+        "https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/${RELEASE} pgadmin4 main"
+    log "---> Instalando pgAdmin4 ..."
+    run apt-fast install -y pgadmin4-desktop
+fi
+
+add_deadsnakes
+update_full
+
+log "---> Instalando wkhtmltopdf ..."
+install_wkhtmltopdf
+
+# Dependencias de compilación y Python
+log "---> Instalando dependencias de Odoo ..."
+run apt-fast install -y git libxml2-dev libjpeg-dev libsasl2-dev libldap2-dev \
+    libssl-dev zlib1g-dev libxslt1-dev "python${PYTHON_VER}" "python${PYTHON_VER}-dev" \
+    "python${PYTHON_VER}-venv" python3-pip gpg lsb-release aria2 virtualenv
+
+download_odoo_ver() {
+    log "---> Descargando Odoo SRC ${ODOO_VER}.0 ..."
+    run aria2c -x2 --quiet=true -d /tmp -o "odoo_${ODOO_VER}.0.latest.tar.gz" \
+        "https://nightly.odoo.com/${ODOO_VER}.0/nightly/src/odoo_${ODOO_VER}.0.latest.tar.gz"
+    log "---> Descomprimiendo ..."
+    run tar -xf "/tmp/odoo_${ODOO_VER}.0.latest.tar.gz" -C /tmp
+    if [ "${DRY_RUN:-0}" = "1" ]; then
+        log "[dry-run] (se omite la lógica dependiente de los archivos descargados)"
+        return 0
+    fi
+    local src_dir
+    src_dir="$(find /tmp -maxdepth 1 -type d -name "odoo-${ODOO_VER}.*" | head -1)"
+    [ -n "$src_dir" ] || die "No se encontró el directorio extraído de Odoo"
+    log "---> Estructura de directorios ..."
+    run mkdir -p "/opt/odoo/odoo${ODOO_VER}"
+    run cp -R "$src_dir/." "/opt/odoo/odoo${ODOO_VER}/"
+    run rm -rf "$src_dir" "/tmp/odoo_${ODOO_VER}.0.latest.tar.gz"
+    # Permisos: dueño dedicado, no 777
+    run chown -R "${DUSER}:${DUSER}" /opt/odoo
 }
 
-#Consulta arquitectura
-if [ $(arch) == 'x86_64' ]; then archtype=arch=amd64; fi
-
-function install_postgres(){
-	echo "---> PostgreSQL APT ... "
-	text="deb [${archtype}] http://apt.postgresql.org/pub/repos/apt $release-pgdg main"
-	echo $text >> $source_list/pgdg.list
-	echo "---> PostgreSQL GPG Key ... "
-	wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmour > $gpgkey_path/pgdg.gpg
-	echo "---> Actualizando ... "
-	update_full > /dev/null
-	echo "---> Instalando Paquetes ... "
-	apt-fast install libpq-dev postgresql-${pgsqlv} -y > /dev/null
-	echo ""
+config_odoo_src() {
+    log "---> Configurando SRC ..."
+    # Layouts antiguos traen setup/odoo; en los modernos odoo-bin ya está en la raíz
+    if [ -f "/opt/odoo/odoo${ODOO_VER}/odoo/setup/odoo" ]; then
+        run mv "/opt/odoo/odoo${ODOO_VER}/odoo/setup/odoo" \
+            "/opt/odoo/odoo${ODOO_VER}/odoo/odoo-bin"
+        run rm -rf "/opt/odoo/odoo${ODOO_VER}/odoo/setup" \
+            "/opt/odoo/odoo${ODOO_VER}/odoo/odoo.egg-info"
+        run rm -f "/opt/odoo/odoo${ODOO_VER}/odoo/setup.cfg" \
+            "/opt/odoo/odoo${ODOO_VER}/odoo/setup.py" \
+            "/opt/odoo/odoo${ODOO_VER}/odoo/PKG-INFO"
+    else
+        log "    layout moderno detectado: odoo-bin ya está en la raíz"
+    fi
 }
 
-function install_pgadmin(){
-	echo "---> PGadmin APT ... "
-	text="deb [${archtype}] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$release pgadmin4 main"
-	echo $text >> $source_list/pgadmin4.list
-	echo "---> pgAdmin4 Key ... "
-	wget --quiet -O - https://www.pgadmin.org/static/packages_pgadmin_org.pub | gpg --dearmour > $gpgkey_path/pgadmin4.gpg
-	echo "---> Actualizando ... "
-	update_full > /dev/null
-	echo "---> Instalando Paquetes ... "
-	apt-fast install pgadmin4-desktop -y > /dev/null
-	echo ""
+config_odoo_env() {
+    log "---> Creando virtualenv ..."
+    run mkdir -p /opt/odoo/venv
+    run virtualenv -p "/usr/bin/python${PYTHON_VER}" "/opt/odoo/venv/odoo${ODOO_VER}"
+    run chown -R "${DUSER}:${DUSER}" /opt/odoo/venv
+    if [ "${DRY_RUN:-0}" = "1" ]; then
+        log "[dry-run] (se omite la búsqueda de requirements.txt y el workspace)"
+        return 0
+    fi
+    local req=""
+    for cand in \
+        "/opt/odoo/odoo${ODOO_VER}/requirements.txt" \
+        "/opt/odoo/odoo${ODOO_VER}/odoo/requirements.txt"; do
+        if [ -f "$cand" ]; then req="$cand"; break; fi
+    done
+    [ -n "$req" ] || die "No se encontró requirements.txt de Odoo"
+    log "---> Instalando dependencias Python ..."
+    run su "$DUSER" -c "/opt/odoo/venv/odoo${ODOO_VER}/bin/pip install --upgrade pip"
+    run su "$DUSER" -c "/opt/odoo/venv/odoo${ODOO_VER}/bin/pip install -r '$req'"
+    log "---> Creando workspace para VSCode ..."
+    run su "$DUSER" -c "mkdir -p /home/${DUSER}/workspace/odoo${ODOO_VER}"
+    run su "$DUSER" -c "ln -sfn /opt/odoo/odoo${ODOO_VER} /home/${DUSER}/workspace/odoo${ODOO_VER}/odoo-src"
+    log "    Ajusta .vscode/settings.json para apuntar a /opt/odoo/venv/odoo${ODOO_VER}/bin/python${PYTHON_VER}"
 }
 
-##wkhtmltopdf
-#Descargar Archivos Base
-#https://github.com/wkhtmltopdf/wkhtmltopdf/releases
-function install_wkhtmltopdf(){
-	apt-fast install xfonts-75dpi xfonts-base -y > /dev/null
-	url_get="https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/0.12.5/"
-	case $release in 
-	'focal') wkhtmltox="wkhtmltox_0.12.5-1.focal_amd64.deb"
-	;;
-	'bionic') wkhtmltox="wkhtmltox_0.12.5-1.bionic_amd64.deb"
-	;;
-	'noble') 
-	echo "---> Instalando Paquetes ... "
-	wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.0g-2ubuntu4_amd64.deb
-	dpkg -i libssl1.1_1.1.0g-2ubuntu4_amd64.deb
-	apt-fast install wkhtmltopdf
-	;;
-	'jammy') 
-	echo "---> Instalando Paquetes ... "
-	apt-fast install wkhtmltopdf
-	esac
-	echo "---> Descargando Paquetes... "
-	wget -q $url_get$wkhtmltox
-	echo "---> Instalando Paquetes ... "
-	dpkg -i $wkhtmltox > /dev/null
-	rm $wkhtmltox
+log "################################################"
+log "Install OdooScript Development (Experimental)  #"
+log "for Easyway (https://github.com/esfingex)      #"
+log "################################################"
 
-	update_full > /dev/null
-	echo ""
-}
-
-function download_odoo_ver(){
-
-	#Descarga odoo
-	echo "---> Descarga Odoo SRC ${odoov}.0 ..."
-	aria2c -x2 --quiet=true https://nightly.odoo.com/${odoov}.0/nightly/src/odoo_${odoov}.0.latest.tar.gz > /dev/null	#Descarga
-	
-	echo "---> Descomprimiendo ..."
-	tar -xf odoo_${odoov}.0.latest.tar.gz > /dev/null														#Descomprime
-	mv odoo-${odoov}.* odoo																					#Cambia el nombre
-
-	echo "---> Estructura Directorios ..."
-	mkdir -p /opt/odoo/odoo${odoov}/
-	cp -R odoo/ /opt/odoo/odoo${odoov}																		#Copia a directorio
-	chmod 777 -R /opt/odoo																					#Asignación de permisos
-	rm odoo_${odoov}.0.latest.tar.gz																		#Borra el temp
-	rm -R odoo
-
-}
-
-#en construccion
-function download_odoogit(){
-
-	git clone https://github.com/odoo/odoo.git --branch 16.0 --depth 1 odoo-16
-	git clone https://github.com/odoo/odoo.git --branch 15.0 --depth 1 odoo-15
-
-}
-
-
-function install_odoo_dev(){
-
-	#Esta función permite agregar más versatilidad a la instalación de librerias adicionales
-	#Falta diferenciar los paquetes entre las diferentes versiones de odoo, según la 14, 15, etc
-
-	echo "Instalando Dependencias de Odoo ..."
-	apt-fast install git libxml2-dev libjpeg-dev libsasl2-dev libldap2-dev libssl-dev zlib1g-dev \
-		libxslt1-dev libldap2-dev python3.${python_v} python3.${python_v}-dev python3.${python_v}-venv python3-pip -y > /dev/null
-	
-	#python3.${python_v}-distutils python3-virtualenv (al parecer son paquetes de python3.10 y 11 )
-
-
-	#Repara el error de path que ocurre en Ubuntu sobre pip
-	su $duser -c "export PATH=$PATH:/home/$duser/.local/bin"	
-	su $duser -c "pip install --upgrade pip > /dev/null"
-	su $duser -c "pip3 install --upgrade pip > /dev/null"
-
-}
-
-function config_odoo_src(){
-	echo "Configurando Odoo ..."
-	echo "---> Configurando SRC ..."
-	mv /opt/odoo/odoo${odoov}/odoo/setup/odoo /opt/odoo/odoo${odoov}/odoo/odoo-bin				#Copia ejecutable python en dictorio principal
-	rm -R /opt/odoo/odoo${odoov}/odoo/setup
-	rm -R /opt/odoo/odoo${odoov}/odoo/odoo.egg-info
-	rm /opt/odoo/odoo${odoov}/odoo/setup.cfg
-	rm /opt/odoo/odoo${odoov}/odoo/setup.py
-	rm /opt/odoo/odoo${odoov}/odoo/PKG-INFO
-}
-
-function config_odoo_env(){
-	#Instalacion Enviroments
-	echo "---> Creando Enviroments ..."
-	mkdir /opt/odoo/venv
-	#Falta versionar python por versión de odoo
-	#odoo 12 al 14 python 3.8
-	#15 a 16 python 3.9
-	#17 a 18 python 3.12 (incluso podria ser 3.11)
-	virtualenv -p /usr/bin/python3.10 /opt/odoo/venv/odoo${odoov} > /dev/null
-	chmod 777 -R /opt/odoo/venv
-	source /opt/odoo/venv/odoo${odoov}/bin/activate
-	pip install pip --upgrade > /dev/null
-	echo "---> Instalando Dependencias Python ..."
-	pip install -r /opt/odoo/odoo${odoov}/odoo/requirements.txt > /dev/null
-	echo "---> Creando Workspace para VScode ..."
-	su $duser -c "mkdir -p /home/$duser/workspace/odoo${odoov}"
-	#echo "---> Copiando Archivos de Configuración ..."
-	#mv odoovs/{.,}* /home/$duser/workspace/odoo${odoov}
-	su $duser -c "ln -s /opt/odoo/odoo${odoov}/odoo/ /home/$duser/workspace/odoo${odoov}/"
-	su $duser -c "chmod 777 -R /home/$duser/workspace/odoo${odoov}"
-	echo ""
-}
-
-#Herramientas de trabajo
-function easyway_for_ubuntu(){
-	echo "---> Descargando Instaladores ... "
-	git clone https://github.com/esfingex/easyway_for_ubuntu.git > /dev/null
-	chmod 777 -R easyway_for_ubuntu
-	
-	echo "---> Instalando Software ... "
-	./easyway_for_ubuntu/vs_code.sh
-	./easyway_for_ubuntu/install_github_desk.sh
-	./easyway_for_ubuntu/install_wine.sh
-	#Opcional
-	#./easyway_for_ubuntu/install_wpsoffice.sh
-	#./easyway_for_ubuntu/vivaldi_browser.sh
-}
-
-function gufw_basic(){
-	echo "---> Reglas del Firewall (Básicas) ... "
-	ufw default deny incoming
-	ufw default allow outgoing
-	iptables -A INPUT -p tcp --dport 8069 -j ACCEPT
-	ufw allow 8069/tcp
-	ufw allow 80/tcp
-	ufw allow 443/tcp
-}
-
-echo "################################################"
-echo "Install OdooScript Development (Experimental)  #"
-echo "for Easyway (https://github.com/esfingex)      #"
-echo "################################################"
-echo ""
-#echo "Antes que Nada ... Lo escencial *_*"
-#requirements
-#echo "Instalando Librería wkhtmltopdf ..."
-#install_wkhtmltopdf
-#echo "Instalando PostgreSQL ..."
-#install_postgres
-#echo "Instalando pgAdmin4 ..."
-#install_pgadmin
-#echo "Instalando Herramientas ..."
-#easyway_for_ubuntu
-#echo "Install Librerias Base de Odoo ..."
-#install_odoo_dev
 download_odoo_ver
 config_odoo_src
 config_odoo_env
-#echo "Instalando Firewall ..."
-#gufw_basic
-echo "Actualizando SO ..."
-update_full > /dev/null
-echo "Instalación Finalizada Enjoy 3:)"
+
+if [ "$FIREWALL" = "1" ]; then
+    gufw_basic
+fi
+
+log "Instalación Finalizada Enjoy 3:)"

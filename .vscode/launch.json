@@ -15,7 +15,7 @@
             "args": [
                 "--config=odoo.conf",
                 "--dev=xml",
-             ],
+            ],
         },
     ]
 }

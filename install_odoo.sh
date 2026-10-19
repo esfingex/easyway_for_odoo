@@ -1,165 +1,105 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
 ########################################
-#                                      #
-# Este script solo soporta versiones   #
-# Ubuntu 18.04, 20.04, 22.04 (LTS)     #
-# Iván Masías                          # 
-# https://github.com/esfingex          #
-#                                      #
+# easyway_for_odoo — instalador de Odoo para SERVIDOR (apt nightly)
+# Iván Masías — https://github.com/esfingex
+#
+# Soporta Ubuntu 18.04, 20.04, 22.04, 24.04 (LTS)
+#
+# Uso:
+#   sudo ./install_odoo.sh [--odoo 18.0] [--pg 16] [--user juan]
+#                          [--extras] [--certbot] [--firewall] [--dry-run]
 ########################################
 
-#DEFINE
-odoov=16.0			          #Versión odoo a instalar
-release=$(lsb_release -cs)	          #Versión de SO (solo ubuntu)
-pgsqlv=16	                          #Versión de PG (solo ubuntu)
-duser=esfingex
-source_list=/etc/apt/sources.list.d
-gpgkey_path=/etc/apt/trusted.gpg.d
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
 
-#Consulta arquitectura
-if [ $(arch) == 'x86_64' ]; then archtype=arch=amd64; fi
+# Defaults
+ODOO_VER="18.0"
+PG_VER=16
+DUSER="${SUDO_USER:-$USER}"
+EXTRAS=0        # librerías python adicionales (pdf417gen, paramiko, cryptography)
+INSTALL_CERTBOT=0
+FIREWALL=0
+CRYPTOGRAPHY_VER="${CRYPTOGRAPHY_VER:-3.4.8}"
 
-function update_full(){
-	apt-fast update -y
-	apt-fast upgrade -y
-	apt-fast autoremove -y
+usage() {
+    cat <<EOF
+Uso: sudo ./install_odoo.sh [opciones]
+EOF
+    usage_common
+    cat <<EOF
+  --extras      instalar librerías python extra (pdf417gen, paramiko, cryptography)
+  --certbot     instalar certbot + plugin nginx
+Variable opcional: CRYPTOGRAPHY_VER=3.4.8 (versión pinneada de cryptography)
+EOF
 }
 
-function requirements(){
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --odoo)     ODOO_VER="$2"; shift 2 ;;
+        --pg)       PG_VER="$2"; shift 2 ;;
+        --user)     DUSER="$2"; shift 2 ;;
+        --extras)   EXTRAS=1; shift ;;
+        --certbot)  INSTALL_CERTBOT=1; shift ;;
+        --firewall) FIREWALL=1; shift ;;
+        --dry-run)  DRY_RUN=1; shift ;;
+        -h|--help)  usage; exit 0 ;;
+        *) die "Opción desconocida: $1 (ver --help)" ;;
+    esac
+done
 
-	#echo "---> Instalando APT-FAST ... "
-	add-apt-repository ppa:apt-fast/stable -y > /dev/null
-	apt-get update -y > /dev/null
-	DEBIAN_FRONTEND=noninteractive apt-get install -qq apt-fast -y > /dev/null
+case "$ODOO_VER" in
+    ''|*[!0-9.]*) die "--odoo debe ser una versión (ej: 18.0)" ;;
+esac
+case "$PG_VER" in
+    ''|*[!0-9]*) die "--pg debe ser un número (ej: 16)" ;;
+esac
 
-	echo "---> Actualizando Sistema ... "
-	update_full > /dev/null
+log "Config: odoo=$ODOO_VER pg=$PG_VER user=$DUSER"
 
-	#Instalación de repositorio multiverse y actualización de addons de forma automatica (ubuntu 18.04)
-	if [ $release == 'bionic' ];
-	then add-apt-repository multiverse > /dev/null
-	fi
+require_root
+check_arch
+check_ubuntu
+install_apt_fast
+update_full
 
-	#Agrega Repositorio de Python con versiones anteriores, 
-	#para versiones superiores a ubuntu 20.04 (Solo LTS)
-	systemos=('focal' 'jammy')
-	
-	for codename in ${systemos[@]}; do
-	  if [ $release == $codename ];
-	  then
-	    add-apt-repository ppa:deadsnakes/ppa -y > /dev/null
-	  fi
-	done
+# PostgreSQL
+add_apt_repo "pgdg" "https://www.postgresql.org/media/keys/ACCC4CF8.asc" \
+    "http://apt.postgresql.org/pub/repos/apt ${RELEASE}-pgdg main"
+log "---> Instalando PostgreSQL $PG_VER ..."
+run apt-fast install -y libpq-dev "postgresql-${PG_VER}"
 
-	apt-get install gpg lsb-release aria2 -y > /dev/null
-	echo ""
+# wkhtmltopdf
+log "---> Instalando wkhtmltopdf ..."
+install_wkhtmltopdf
 
-}
+add_deadsnakes
+update_full
 
-##wkhtmltopdf
-#Descargar Archivos Base
-#https://github.com/wkhtmltopdf/wkhtmltopdf/releases
-function install_wkhtmltopdf(){
-	apt-fast install xfonts-75dpi xfonts-base -y > /dev/null
+# Odoo desde nightly (repo apt con keyring firmado)
+add_apt_repo "odoo" "https://nightly.odoo.com/odoo.key" \
+    "http://nightly.odoo.com/${ODOO_VER}/nightly/deb/ ./"
+log "---> Instalando Odoo $ODOO_VER ..."
+run apt-fast install -y odoo
+run systemctl restart odoo || run service odoo restart
 
-	if [ $release == 'jammy' ];
-	then
-		echo "---> Instalando Paquetes ... "
-		apt-get install wkhtmltopdf -y > /dev/null
-	else
-		url_get="https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/0.12.5/"
-		case $release in 
-		'focal') wkhtmltox="wkhtmltox_0.12.5-1.focal_amd64.deb"
-		;;
-		'bionic') wkhtmltox="wkhtmltox_0.12.5-1.bionic_amd64.deb"
-		;;
-		esac
-		echo "---> Descargando Paquetes... "
-		wget -q $url_get$wkhtmltox
-		echo "---> Instalando Paquetes ... "
-		dpkg -i $wkhtmltox > /dev/null
-		rm $wkhtmltox
-	fi
-	update_full > /dev/null
-	echo ""
-}
+if [ "$EXTRAS" = "1" ]; then
+    log "---> Instalando librerías Python extra ..."
+    run apt-get install -y python3-pip
+    run su "$DUSER" -c "pip3 install --upgrade pip"
+    run su "$DUSER" -c "pip3 install pdf417gen paramiko cryptography==${CRYPTOGRAPHY_VER}"
+fi
 
-function install_postgres(){
-	echo "---> PostgreSQL APT ... "
-	text="deb [${archtype}] http://apt.postgresql.org/pub/repos/apt $release-pgdg main"
-	echo $text >> $source_list/pgdg.list
-	echo "---> PostgreSQL GPG Key ... "
-	wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmour > $gpgkey_path/pgdg.gpg
-	echo "---> Actualizando ... "
-	update_full > /dev/null
-	echo "---> Instalando Paquetes ... "
-	apt-get install libpq-dev postgresql-${pgsqlv} -y > /dev/null
-	echo ""
-}
+if [ "$INSTALL_CERTBOT" = "1" ]; then
+    log "---> Instalando Certbot ..."
+    run apt-get install -y certbot python3-certbot-nginx
+fi
 
-#Odoo
-function install_odoo(){
-	echo "---> Odoo GPG Key ... "
-	wget -qO- https://nightly.odoo.com/odoo.key | gpg --dearmour > $gpgkey_path/odoo.gpg
-	echo "---> Odoo APT ... "
-	text="deb [signed-by=${gpgkey_path}/odoo.gpg] http://nightly.odoo.com/${odoov}/nightly/deb/ ./"
-	echo $text >> $source_list/odoo.list
-	echo "---> Actualizando ... "
-	update_full > /dev/null
-	echo "Instalando Odoo"
-	apt-get install odoo -y > /dev/null
-	echo "---> Reiniciando ... "
-	service odoo restart
-	echo ""
-}
+if [ "$FIREWALL" = "1" ]; then
+    gufw_basic
+fi
 
-function install_odoo_librery(){
-	echo "Instalando Dependencias de Odoo ..."
-	apt-get install python3.10-dev python3-distutils python3-pip -y > /dev/null
-	su $duser -c "pip3 install --upgrade pip > /dev/null"
-	su $duser -c "pip3 install pdf417gen paramiko cryptography==3.4.8 > /dev/null"
-}
-
-#function odoo_conf(){
-#	#ODOO CONFIG
-#	sudo touch /etc/odoo/odoo.conf
-#	echo "admin_passwd = admin" | sudo tee --append /etc/odoo/odoo.conf
-#}
-
-function install_certbot(){
-	echo "---> Instalando Cerbot ... "
-	apt-get install -y certbot python3-certbot-nginx > /dev/null	
-}
-
-function gufw_basic(){
-	echo "---> Reglas del Firewall (Básicas) ... "
-	ufw default deny incoming
-	ufw default allow outgoing
-	iptables -A INPUT -p tcp --dport 8069 -j ACCEPT
-	sudo ufw allow 8069/tcp
-	sudo ufw allow 80/tcp
-	sudo ufw allow 443/tcp
-}
-
-echo "################################################"
-echo "Install OdooScript (Experimental)              #"
-echo "for Easyway (https://github.com/esfingex)      #"
-echo "################################################"
-echo ""
-#echo "Antes que Nada ... Lo escencial _"
-#requirements
-#echo "Instalando Librería wkhtmltopdf ..."
-#install_wkhtmltopdf
-#echo "Instalando PostgreSQL ..."
-#install_postgres
-#echo "Instalando Odoo ..."
-#install_odoo
-#echo "Instalando Librerías ..."
-#install_odoo_librery
-echo "Configurando Odoo ..."
-#odoo_conf
-#echo "Instalando Certbot ..."
-install_certbot
-#echo "Instalando Firewall ..."
-#gufw_basic
+log "Instalación Finalizada Enjoy 3:)"

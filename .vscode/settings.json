@@ -1,3 +1,6 @@
 {
-    "python.defaultInterpreterPath": "/opt/odoo/venv/odoo14/bin/python3.9",
+    // Ajusta la ruta según la versión instalada por install_develop.sh:
+    // /opt/odoo/venv/odoo<VER>/bin/python<PY>
+    // Default del instalador: odoo 18 con python 3.12
+    "python.defaultInterpreterPath": "/opt/odoo/venv/odoo18/bin/python3.12",
 }
