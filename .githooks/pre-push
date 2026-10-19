@@ -1,0 +1,58 @@
+#!/bin/bash
+# pre-push: portero de publicación.
+# Solo actúa al pushear a GitHub. Revisa los commits que van a salir y
+# bloquea el push si encuentra contenido privado.
+# Instalación: git config core.hooksPath .githooks
+
+REMOTE_NAME="$1"
+REMOTE_URL="$2"
+
+# Solo vigilamos la publicación pública
+case "$REMOTE_URL" in
+    *github.com*) : ;;
+    *) exit 0 ;;
+esac
+
+block() {
+    echo "BLOQUEADO: $*" >&2
+    exit 1
+}
+
+# Leche del stdin: "local_ref local_sha remote_ref remote_sha" por línea
+while read -r local_ref local_sha remote_ref remote_sha; do
+    # borrado de rama: nada que revisar
+    case "$local_sha" in *[!0]*) ;; *) continue ;; esac
+
+    # rama nueva (remoto sin commits) vs rama existente
+    case "$remote_sha" in
+        *[!0]*) RANGE="$remote_sha..$local_sha" ;;
+        *)      RANGE="origin/main..$local_sha" ;;
+    esac
+
+    # 1) El planning y el aislamiento jamás deben estar rastreados
+    if git ls-tree -r --name-only "$local_sha" | grep -qE '^docs/planning/|^scratch/'; then
+        block "hay archivos de docs/planning/ o scratch/ rastreados en el commit.
+  Corre: git rm -r --cached docs/planning scratch && git commit --amend"
+    fi
+
+    # 2) Escaneo de secretos en el contenido publicado (fail-closed:
+    #    si el diff no se puede calcular, se bloquea)
+    PATTERNS='BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]{36}|github_pat_|sk-[A-Za-z0-9]{20}|AKIA[0-9A-Z]{16}|29a863a7f550b6fe1c27427d8a60a52fd986678f80417d69b33cad251ef95830|easyway-(planning|limpieza)-[0-9]+'
+    if ! DIFF=$(git diff "$RANGE" 2>&1); then
+        block "no pude calcular el diff de $RANGE: $DIFF"
+    fi
+    MATCHES=$(printf '%s\n' "$DIFF" | grep -nE "$PATTERNS" || true)
+    if [ -n "$MATCHES" ]; then
+        echo "$MATCHES" >&2
+        block "el diff de $RANGE contiene algo que parece un secreto (líneas de arriba)."
+    fi
+
+    # 3) Contraseñas reales en configs (el placeholder CHANGE_ME sí es publicable)
+    REALPW=$(printf '%s\n' "$DIFF" | grep -E '^\+.*(admin_passwd|db_password|smtp_password) *=' | grep -vE 'CHANGE_ME|= *False|= *$' || true)
+    if [ -n "$REALPW" ]; then
+        echo "$REALPW" >&2
+        block "hay una contraseña real escrita en una config del diff."
+    fi
+done
+
+exit 0
