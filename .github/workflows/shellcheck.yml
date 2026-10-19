@@ -13,3 +13,6 @@ jobs:
         uses: ludeeus/action-shellcheck@master
         with:
           severity: style
+          files: |
+            **/*.sh
+            bin/easyway

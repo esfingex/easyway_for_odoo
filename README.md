@@ -1,80 +1,86 @@
 # easyway_for_odoo
 
-Instaladores de Odoo para Ubuntu LTS (18.04 / 20.04 / 22.04 / 24.04), en dos sabores:
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![shellcheck](https://github.com/esfingex/easyway_for_odoo/actions/workflows/shellcheck.yml/badge.svg)](.github/workflows/shellcheck.yml)
 
-- **`install_develop.sh`** — entorno de desarrollo: PostgreSQL, wkhtmltopdf, código fuente de Odoo (nightly tarball) en `/opt/odoo/odoo<VER>`, virtualenv dedicado y workspace para VSCode con symlink.
-- **`install_odoo.sh`** — servidor: Odoo desde el repositorio apt nightly, PostgreSQL, wkhtmltopdf, extras opcionales (certbot, firewall, librerías Python).
+Instaladores de Odoo para Ubuntu LTS (18.04 / 20.04 / 22.04 / 24.04), con una CLI unificada.
 
-## Uso
+## Inicio rápido
 
 ```bash
-# Desarrollo (odoo 18, python 3.12 automático)
-sudo ./install_develop.sh
+git clone https://github.com/esfingex/easyway_for_odoo.git
+cd easyway_for_odoo
 
-# Desarrollo con otras versiones
-sudo ./install_develop.sh --odoo 17 --pg 16 --user juan --pgadmin
-
-# Servidor
-sudo ./install_odoo.sh --odoo 18.0 --pg 16 --extras --certbot --firewall
+./bin/easyway doctor              # diagnóstico del sistema (read-only)
+./bin/easyway install dev --dry-run   # ensaya la instalación sin tocar nada
+sudo ./bin/easyway install dev        # instala el entorno de desarrollo
 ```
 
-### Opciones comunes
+## La CLI: `bin/easyway`
 
-- `--odoo N` — versión de Odoo (dev: `18` default; server: `18.0` default)
+| Comando | Qué hace |
+|---------|----------|
+| `easyway install dev` | Entorno de desarrollo: PostgreSQL, wkhtmltopdf, código fuente de Odoo (nightly) en `/opt/odoo/odoo<VER>`, virtualenv y workspace para VSCode |
+| `easyway install server` | Servidor: Odoo desde el repo apt nightly + PostgreSQL + wkhtmltopdf |
+| `easyway doctor` | Chequeo pre-instalación: SO soportado, root/sudo, comandos necesarios |
+| `easyway test` | Suite de pruebas del repo |
+
+Flags de instalación (pasan directo):
+
+- `--odoo N` — versión de Odoo (dev: `18`, server: `18.0`)
 - `--pg N` — versión de PostgreSQL (default `16`)
 - `--user USR` — dueño de los archivos (default: quien invoca sudo)
+- `--python 3.X` — sobrescribe el mapeo automático Odoo→Python
 - `--firewall` — reglas básicas de ufw/iptables
-- `--dry-run` — **imprime los comandos sin ejecutarlos** (verificación segura)
-- `--help` — ayuda
+- `--dry-run` — **imprime los comandos sin ejecutarlos**
+- `--pgadmin` (dev) / `--extras` y `--certbot` (server) — opcionales
 
-Adicionales: `install_develop.sh --pgadmin` instala pgAdmin4 desktop; `install_odoo.sh --extras` instala `pdf417gen`, `paramiko` y `cryptography` (versión configurable con `CRYPTOGRAPHY_VER=`).
+Mapeo automático Odoo → Python: 15→3.10, 16/17→3.10, 18→3.12.
 
-## Mapeo Odoo → Python
+## Seguridad del flujo de publicación
 
-| Odoo | Python |
-|------|--------|
-| 15   | 3.10   |
-| 16/17| 3.10   |
-| 18   | 3.12   |
+- Los instaladores corren con `set -euo pipefail`: se detienen al primer error.
+- Repos APT idempotentes con keyrings firmados (`signed-by`, no `trusted.gpg.d`).
+- Nunca `chmod 777`: los archivos quedan con dueño dedicado (`chown`).
+- `--dry-run` en todo: ensaya sin tocar el sistema.
+- **Portero de publicación** (`.githooks/pre-push`): todo push a GitHub pasa por un chequeo que bloquea secretos, contraseñas reales y archivos privados. Se instala con `git config core.hooksPath .githooks`.
 
-Sobrescribir con `--python 3.X`.
+## Workflow de publicación (privado → público)
 
-## Configuraciones
-
-- `odoo.conf` — desarrollo (workers=0, list_db on, proxy off). **Cambiar `CHANGE_ME` antes de usar.**
-- `odoo.prod.conf` — plantilla de producción (workers>0, list_db off, proxy_mode on, log a archivo). Requiere nginx/apache como proxy.
-- `odoovs/odoo.conf` — plantilla para el workspace de VSCode.
-
-> Opciones obsoletas eliminadas respecto a versiones pasadas: `osv_memory_age_limit`, `osv_memory_count_limit` (≤14), `longpolling_port` (≤15), `port` (usar `http_port`).
-
-## Verificación sin instalar nada
+Este proyecto se desarrolla contra un servidor Forgejo privado y se publica en GitHub:
 
 ```bash
-./install_develop.sh --dry-run
-./install_odoo.sh --dry-run
+git publish        # push a Forgejo + GitHub; el portero revisa lo que sale
 ```
+
+El historial de waves y decisiones de diseño vive en un repositorio privado aparte (`easyway_for_odoo_planning`) y nunca entra al repo público.
 
 ## Estructura
 
 ```
-lib/common.sh        utilidades compartidas (log, dry-run, repos apt idempotentes)
-install_develop.sh   instalador de desarrollo
-install_odoo.sh      instalador de servidor
-odoo.conf            config dev
-odoo.prod.conf       config producción (plantilla)
-odoovs/              plantilla VSCode
-tests/               suite de pruebas reproducible
+bin/easyway           CLI unificada
+lib/common.sh         utilidades compartidas (log, dry-run, repos apt)
+install_develop.sh    instalador de desarrollo
+install_odoo.sh       instalador de servidor
+odoo.conf             config de desarrollo
+odoo.prod.conf        config de producción (plantilla)
+odoovs/               plantilla VSCode
+tests/                suite de pruebas reproducible
+.githooks/            portero de publicación
 ```
 
-El historial de waves y decisiones de diseño **no vive en este repo**: está
-en un repositorio privado aparte (`easyway_for_odoo_planning`).
+## Pruebas
+
+```bash
+./bin/easyway test             # suite principal
+bash tests/test_pre_push.sh    # pruebas del portero
+```
 
 ## Notas
 
-- Los repos APT se agregan de forma **idempotente** y con keyrings firmados en `/usr/share/keyrings` (no `trusted.gpg.d`, deprecado).
 - wkhtmltopdf: builds oficiales 0.12.6-1 (bionic/focal) y 0.12.6.1-3 (jammy). **No existe build oficial para 24.04 (noble)**; ahí se usa el paquete de jammy.
-- Nunca rular con `chmod 777`; los archivos quedan con dueño dedicado (`chown`).
-- CI: shellcheck en cada push (`.github/workflows/shellcheck.yml`).
+- Opciones obsoletas eliminadas de las configs: `osv_memory_*`, `longpolling_port`, `port`, `demo`.
+- `odoo.conf` es para desarrollo (`workers = 0`); para producción usa `odoo.prod.conf` detrás de nginx y **genera un `admin_passwd` fuerte**.
 
 ## Licencia
 

@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+########################################
+# easyway — CLI unificada de easyway_for_odoo
+#
+#   easyway install dev      entorno de desarrollo (install_develop.sh)
+#   easyway install server   servidor vía apt nightly (install_odoo.sh)
+#   easyway doctor           chequeo pre-instalación del sistema
+#   easyway test             corre la suite de pruebas del repo
+#   easyway version          versión de la CLI
+#
+# Los flags de los instaladores pasan directo: --odoo, --pg, --python,
+# --user, --firewall, --dry-run, etc. Ver: easyway install dev --help
+########################################
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+
+VERSION="1.0.0"
+
+usage() {
+    cat <<EOF
+easyway ${VERSION} — instaladores de Odoo para Ubuntu LTS
+https://github.com/esfingex/easyway_for_odoo
+
+Uso:
+  easyway install dev [flags]      entorno de desarrollo
+  easyway install server [flags]   servidor (apt nightly)
+  easyway doctor                   diagnóstico del sistema (read-only)
+  easyway test                     suite de pruebas del repo
+  easyway version                  muestra la versión
+
+Flags de instalación (pasan directo a los scripts):
+  --odoo N    versión de Odoo (dev default: 18)
+  --pg N      versión de PostgreSQL (default: 16)
+  --user USR  usuario dueño de los archivos
+  --dry-run   mostrar comandos sin ejecutar nada
+  --help      ayuda del subcomando
+EOF
+}
+
+# doctor — chequeos pre-instalación, read-only, seguro en cualquier SO
+doctor() {
+    local fails=0
+
+    check() { # check <desc> <cmd...>
+        local desc="$1"; shift
+        if "$@" >/dev/null 2>&1; then
+            echo "  OK    $desc"
+        else
+            echo "  FALLA $desc"
+            fails=$((fails + 1))
+        fi
+    }
+
+    echo "easyway doctor — diagnóstico del sistema"
+
+    local release="${EASYWAY_RELEASE:-}"
+    if [ -z "$release" ] && command -v lsb_release >/dev/null 2>&1; then
+        release="$(lsb_release -cs 2>/dev/null || echo n/a)"
+    fi
+    case "$release" in
+        bionic|focal|jammy|noble)
+            echo "  OK    Ubuntu $release soportado"
+            ;;
+        *)
+            echo "  FALLA SO no soportado (release=$release); los instaladores apuntan a Ubuntu 18.04/20.04/22.04/24.04"
+            fails=$((fails + 1))
+            ;;
+    esac
+
+    if [ "$(id -u)" -eq 0 ]; then
+        echo "  OK    root"
+    elif command -v sudo >/dev/null 2>&1; then
+        echo "  AVISO no eres root; los instaladores requieren sudo"
+    else
+        echo "  FALLA ni root ni sudo disponibles"
+        fails=$((fails + 1))
+    fi
+
+    local cmd
+    for cmd in git curl wget gpg aria2c virtualenv python3 apt; do
+        check "comando $cmd" command -v "$cmd"
+    done
+
+    if [ "$fails" -gt 0 ]; then
+        echo "doctor: $fails chequeo(s) fallaron. Corrige antes de instalar."
+        exit 1
+    fi
+    echo "doctor: todo listo para instalar."
+}
+
+[ $# -gt 0 ] || { usage; exit 0; }
+CMD="$1"; shift
+
+case "$CMD" in
+    install)
+        [ $# -gt 0 ] || die "easyway install requiere dev|server (ver --help)"
+        SUB="$1"; shift
+        case "$SUB" in
+            dev)    exec "$SCRIPT_DIR/install_develop.sh" "$@" ;;
+            server) exec "$SCRIPT_DIR/install_odoo.sh" "$@" ;;
+            *) die "subcomando desconocido: install $SUB (opciones: dev, server)" ;;
+        esac
+        ;;
+    doctor)  doctor "$@" ;;
+    test)
+        exec bash "$SCRIPT_DIR/tests/test_common.sh"
+        ;;
+    version|--version|-V) echo "easyway ${VERSION}" ;;
+    help|--help|-h) usage ;;
+    *) usage; die "comando desconocido: $CMD" ;;
+esac
